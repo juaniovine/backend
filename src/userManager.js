@@ -1,85 +1,67 @@
 const fs = require('fs');
+const crypto = require('crypto')
 
-class UserManager {
-    // Propiedad estática, almacena todos los eventos que se vayan creando
-    static events = [];
-
-    // Constructor ahora acepta un parámetro para el nombre del archivo JSON
-    constructor(fileName) {
-        this.fileName = fileName;
-        this.events = this.loadEvents();
+module.exports = class UserManager {  //exportacion
+    constructor (file) {
+        this.file = file;
     }
 
-    // Cargar eventos desde el archivo JSON
-    loadEvents() {
+    async getAllUsers() {
         try {
-            const data = fs.readFileSync(`./data/${this.fileName}.json`, 'utf8');
-            return JSON.parse(data);
+            const users = await fs.promises.readFile(this.file,'utf-8');
+
+            return JSON.parse(users);
         } catch (error) {
-            // Si el archivo no existe, retorna un array vacío
-            return [];
+            console.error(error.message)
+            return []; //comienzo con un array vacío
         }
     }
 
-    // Guardar eventos en el archivo JSON
-    saveEvents() {
-        fs.writeFileSync(`./data/${this.fileName}.json`, JSON.stringify(this.events, null, 2), 'utf8');
+    async createUser(user) {
+
+        if(!user.UserName || !user.Password) return 'Please provide user and password'
+
+        const newUser = {
+            Name: user.Name ?? 'No name provided for user',
+            LastName: user.LastName ?? 'No lastname provided for user',
+            UserName: user.UserName,
+            Password: this.getHash(user.Password)  //encriptado de contraseña hexadecimal
+        }
+
+        const users = await this.getAllUsers();
+
+        users.push(newUser);
+
+        try {
+            await fs.promises.writeFile(this.file, JSON.stringify(users, null, '\t'));
+            
+            return 'User generated correctly'
+        } catch (error) {
+            console.error(error.message);
+            return 'An error has occurred while creating the user'
+        }
+    }
+    
+    getHash(password) {
+        return crypto.createHash('sha256').update(password).digest('hex'); //encripto password
     }
 
-    // Método para agregar un evento
-    create(data) {
-        const newEvent = {
-            id: this.events.length === 0 ? 1 : this.events[this.events.length - 1].id + 1,
-            name: data.name,
-            photo: data.photo,
-            email: data.email,
-        };
+    async userValidator(user) {
+        const userValidate = {
+            UserName: user.UserName,
+            Password: user.Password
+        }
 
-        this.events.push(newEvent);
-        this.saveEvents();
-    }
+        const users = await this.getAllUsers();
 
-    // Método para leer todos los eventos
-    read() {
-        return this.events;
-    }
-
-    // Método para leer un evento por ID
-    readOne(id) {
-        return this.events.find(event => event.id === Number(id));
+        for(let key in users) {
+            if(userValidate.UserName === users[key].UserName) {
+                if(this.getHash(userValidate.Password) === users[key].Password) 
+                return 'User logged'
+                } else {
+                return 'Incorrect user or password'
+            }
+        }
+        return 'Usuario no encontrado'
     }
 }
-
-// Crear la carpeta 'data' si no existe
-if (!fs.existsSync('./data')) {
-    fs.mkdirSync('./data');
-}
-
-// Nombre del archivo JSON (sin la extensión .json)
-const jsonFileName = 'users';
-
-// Crear una instancia de UserManager con el nombre del archivo JSON
-const userManager = new UserManager(jsonFileName);
-
-// Añadir eventos
-userManager.create({
-    name: 'Carlos Rodriguez',
-    photo: 'photoIV',
-    email: 'carlos.rodriguez@gmail.com',
-});
-userManager.create({
-    name: 'Ana Lopez',
-    photo: 'photoIV',
-    email: 'alopez@gmail.com',
-});
-userManager.create({
-    name: 'Alejandro Gomez',
-    photo: 'photoIV',
-    email: 'ale.gomez@gmail.com',
-});
-
-// Mostrar todos los eventos
-console.log(userManager.read());
-
-// Mostrar un evento por ID
-console.log(userManager.readOne(2));
